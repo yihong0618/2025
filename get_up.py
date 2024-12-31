@@ -150,7 +150,7 @@ def main(
     body = GET_UP_MESSAGE_TEMPLATE.format(get_up_time=get_up_time, sentence=sentence)
     # left ? days to next year
     early_message = body
-    next_year = pendulum.datetime(pendulum.now().year + 1, 1, 1)
+    next_year = pendulum.datetime(pendulum.now(TIMEZONE).year + 1, 1, 1)
     left_days = (next_year - pendulum.now()).days
     left_message = f"还有 {left_days} 天今年就过完了!\n"
     body = left_message + early_message
