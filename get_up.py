@@ -87,14 +87,6 @@ def make_pic_and_save(sentence):
     new_path = os.path.join("OUT_DIR", date_str)
     if not os.path.exists(new_path):
         os.mkdir(new_path)
-    # response = client.images.generate(
-    #     model="dall-e-3", prompt=sentence, size="1024x1024", quality="standard", n=1
-    # )
-    # image_url_for_issue = response.model_dump()["data"][0]["url"]
-    # response = requests.get(image_url_for_issue)
-    # with open(f"{new_path}/1.png", "wb") as f:
-    #     f.write(response.content)
-    # try to use this to generate video
     i = ImageGen(KLING_COOKIE)
     images_list = i.get_images(sentence)
     return images_list
@@ -160,7 +152,7 @@ def main(
     early_message = body
     next_year = pendulum.datetime(pendulum.now().year + 1, 1, 1)
     left_days = (next_year - pendulum.now()).days
-    left_message = f"还有 {left_days} 天今年就过完了。。。\n"
+    left_message = f"还有 {left_days} 天今年就过完了!\n"
     body = left_message + early_message
 
     # early_message = body
