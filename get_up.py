@@ -143,7 +143,7 @@ def main(
     is_today = get_today_get_up_status(issue)
     if is_today:
         print("Today I have recorded the wake up time")
-        # return
+        return
     yesterday_question = get_yesterday_question()
     sentence, is_get_up_early, images_list = make_get_up_message()
     get_up_time = pendulum.now(TIMEZONE).to_datetime_string()

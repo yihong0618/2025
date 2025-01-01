@@ -2,6 +2,11 @@ name: CICHANG REMEMBER
 
 on:
   workflow_dispatch:
+    inputs:
+      message:
+        description: "message"
+        required: false
+
 
 env:
   OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
