@@ -99,35 +99,11 @@ def make_get_up_message():
     ###  make it to 9 in 2024.10.15 for maybe I forgot it ###
     is_get_up_early = 3 <= now.hour <= 9
     try:
-        images_list = make_pic_and_save(sentence)
+        sentence = get_one_sentence()
+        print(f"Second: {sentence}")
     except Exception as e:
         print(str(e))
-        # give it a second chance
-        try:
-            sentence = get_one_sentence()
-            print(f"Second: {sentence}")
-            images_list = make_pic_and_save(sentence)
-        except Exception as e:
-            print(str(e))
-    return sentence, is_get_up_early, images_list
-
-
-def get_yesterday_question():
-    # get yesterday's questions
-    with open("questions.txt") as f:
-        questions = f.read()
-
-    completion = client.chat.completions.create(
-        messages=[
-            {"role": "user", "content": YESTERDAY_QUESTION.format(questions=questions)}
-        ],
-        model="gpt-4o-2024-05-13",
-    )
-    answer = completion.choices[0].message.content.encode("utf8").decode()
-    # write the answer to a file
-    with open("questions.txt", "w") as f:
-        f.write(answer)
-    return answer
+    return sentence, is_get_up_early
 
 
 def main(
@@ -144,40 +120,20 @@ def main(
     if is_today:
         print("Today I have recorded the wake up time")
         return
-    yesterday_question = get_yesterday_question()
-    sentence, is_get_up_early, images_list = make_get_up_message()
+    sentence, is_get_up_early = make_get_up_message()
     get_up_time = pendulum.now(TIMEZONE).to_datetime_string()
     body = GET_UP_MESSAGE_TEMPLATE.format(get_up_time=get_up_time, sentence=sentence)
-    # left ? days to next year
-    early_message = body
-    next_year = pendulum.datetime(pendulum.now(TIMEZONE).year + 1, 1, 1)
-    left_days = (next_year - pendulum.now()).days
-    left_message = f"还有 {left_days} 天今年就过完了!\n"
-    body = left_message + early_message
 
-    # early_message = body
-    # if weather_message.strip() == "hello":
-    #     weather_message = f"现在的天气是{weather_message}\n"
-    #     body = weather_message + early_message
-    body = body + f"\n\n关于昨天的问题？\n{yesterday_question}"
     if is_get_up_early:
-        comment = body + f"![image]({images_list[0]})"
-        issue.create_comment(comment)
+        issue.create_comment(body)
         # send to telegram
         if tele_token and tele_chat_id:
             bot = telebot.TeleBot(tele_token)
-
-            if images_list:
-                try:
-                    # sleep for waiting for the image to be generated
-                    time.sleep(4)
-                    photos_list = [InputMediaPhoto(i) for i in images_list[:4]]
-                    photos_list[0].caption = body
-                    bot.send_media_group(
-                        tele_chat_id, photos_list, disable_notification=True
-                    )
-                except Exception as e:
-                    print(str(e))
+            try:
+                # sleep for waiting for the image to be generated
+                bot.send_message(tele_chat_id, body, disable_notification=True)
+            except Exception as e:
+                print(str(e))
     else:
         print("You wake up late")
 
