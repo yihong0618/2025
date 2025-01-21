@@ -1,16 +1,9 @@
 import argparse
-import os
-from pathlib import Path
-import random
-import time
 
 import pendulum
 import requests
 import telebot
-from telebot.types import InputMediaPhoto, InputMediaVideo
 from github import Github
-from openai import OpenAI
-from kling import VideoGen, ImageGen
 
 # 1 real get up #5 for test
 GET_UP_ISSUE_NUMBER = 1
@@ -22,24 +15,6 @@ DEFAULT_SENTENCE = (
     "赏花归去马如飞\r\n去马如飞酒力微\r\n酒力微醒时已暮\r\n醒时已暮赏花归\r\n"
 )
 TIMEZONE = "Asia/Shanghai"
-YESTERDAY_QUESTION = "问我关于我昨天过的怎么样的五个问题。请不要包含这些问题：{questions}, 并只返回问题。"
-if api_base := os.environ.get("OPENAI_API_BASE"):
-    client = OpenAI(base_url=api_base, api_key=os.environ.get("OPENAI_API_KEY"))
-else:
-    client = OpenAI()
-
-KLING_COOKIE = os.environ.get("KLING_COOKIE")
-
-
-def get_all_til_knowledge_file():
-    til_dir = Path(os.environ.get("MORNING_REPO_NAME"))
-    today_dir = random.choice(list(til_dir.iterdir()))
-    md_files = []
-    for root, _, files in os.walk(today_dir):
-        for file in files:
-            if file.endswith(".md"):
-                md_files.append(os.path.join(root, file))
-    return md_files
 
 
 def login(token):
@@ -68,28 +43,6 @@ def get_today_get_up_status(issue):
     )
     is_today = (latest_day.day == now.day) and (latest_day.month == now.month)
     return is_today
-
-
-def make_pic_and_save(sentence):
-    prompt = f"revise `{sentence}` to a stable diffusion prompt"
-    try:
-        completion = client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
-            model="gpt-4o-2024-05-13",
-        )
-        sentence = completion.choices[0].message.content.encode("utf8").decode()
-        print(f"revies: {sentence}")
-    except:
-        print("revise sentence wrong")
-
-    now = pendulum.now()
-    date_str = now.to_date_string()
-    new_path = os.path.join("OUT_DIR", date_str)
-    if not os.path.exists(new_path):
-        os.mkdir(new_path)
-    i = ImageGen(KLING_COOKIE)
-    images_list = i.get_images(sentence)
-    return images_list
 
 
 def make_get_up_message():
