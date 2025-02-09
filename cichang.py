@@ -124,10 +124,6 @@ def main(user_name, password, token, tele_token, tele_chat_id):
         word_list, word_define_list, symbol_list = make_xiaod_note(s)
     except Exception as e:
         s = login(user_name, password)
-        bot.send_message(
-            tele_chat_id,
-            "toekn is invalid, try to login, please change the token in GitHub secret",
-        )
         word_list, word_define_list, symbol_list = make_xiaod_note(s)
     bot = telebot.TeleBot(tele_token)
     # word
