@@ -19,6 +19,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: install python 3.10
         uses: actions/setup-python@v5
@@ -29,6 +32,6 @@ jobs:
         run: |
           pip install -r requirements.txt
       
-      - name: GET UP
+      - name: GET UP WITH WORDS
         run: |
           python cichang.py ${{ secrets.HJ_USERNAME }} ${{ secrets.HJ_PASSWORD }} ${{ secrets.HJ_TOKEN }} --tele_token ${{ secrets.TG_TOKEN }} --tele_chat_id ${{ secrets.TG_HJ_CHAT_ID }}

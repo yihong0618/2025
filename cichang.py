@@ -27,7 +27,7 @@ COVERT_URL = "https://pass-cdn.hjapi.com/v1.1/access_token/convert"
 
 # added in 2023.06.08
 XIAOD_LIST_URL = "https://vocablist.hjapi.com/notebook/notebooklist?lastSyncDate=2000-01-01T00%3A00%3A00.000&lastSyncVer=0&syncVer=1"
-XIAOD_ONE_NOTE_URL = "https://vocablist.hjapi.com/notebook/notewords?lastSyncDate=2000-01-01T00%3A00%3A00.000&lastSyncVer=0&nbookid={nbook_id}&oldnbookid=0&syncVer=1"
+XIAOD_ONE_NOTE_URL = "https://dict.hujiang.com/notebookweb/notewords?lastSyncDate=2000-01-01T00%3A00%3A00.000&nbookid={nbook_id}&pageNo=1&pageSize=100&sortField=TIME&sortord=DESC"
 
 
 def md5_encode(string):
@@ -84,7 +84,6 @@ def make_xiaod_note(s):
     yesterday_words = []
     yesterday_words_define = []
     yesterday_symbol_list = []
-
     for k, v in note_dict.items():
         data = get_xiaod_words(s, k)
         word_list = data["data"]["wordList"]
@@ -104,7 +103,6 @@ def make_xiaod_note(s):
                 yesterday_words.append(word["word"])
                 yesterday_words_define.append(word["definition"])
                 yesterday_symbol_list.append(word["symbol1"])
-
     if not new_words:
         print("No new words today")
         return yesterday_words, yesterday_words_define, yesterday_symbol_list
@@ -121,10 +119,10 @@ def main(user_name, password, token, tele_token, tele_chat_id):
         word_list, word_define_list, symbol_list = make_xiaod_note(s)
     except Exception as e:
         s = login(user_name, password)
-        bot.send_message(
-            tele_chat_id,
-            "toekn is invalid, try to login, please change the token in GitHub secret",
-        )
+        # bot.send_message(
+        #     tele_chat_id,
+        #     "toekn is invalid, try to login, please change the token in GitHub secret",
+        # )
         word_list, word_define_list, symbol_list = make_xiaod_note(s)
     bot = telebot.TeleBot(tele_token)
     # word
@@ -168,7 +166,7 @@ def main(user_name, password, token, tele_token, tele_chat_id):
                 bot.send_audio(
                     tele_chat_id,
                     open(speech_file_path, "rb"),
-                    caption=telegramify_markdown.convert(content),
+                    caption=telegramify_markdown.markdownify(content),
                 )
                 # spdier rule
                 time.sleep(1)
