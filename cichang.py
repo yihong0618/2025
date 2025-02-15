@@ -12,7 +12,7 @@ import telebot
 import pendulum
 from openai import OpenAI
 from rich import print
-import telegramify_markdown
+from telegramify_markdown import markdownify
 
 
 if api_base := os.environ.get("OPENAI_API_BASE"):
@@ -75,15 +75,22 @@ def login(user_name, password):
     return s
 
 
-def make_xiaod_note(s):
+def learning_curve_days():
+    now = pendulum.now(TIMEZONE)
+    days_list = [1, 2, 4, 7, 15, 30]
+    return [now.subtract(days=d).to_date_string() for d in days_list]
+
+
+def make_xiaod_note_words(s):
+    words_dict = {}
     now = pendulum.now(TIMEZONE)
     note_dict = get_xiaod_notes_dict(s)
     new_words = []
     new_words_define = []
     symbol_list = []
-    yesterday_words = []
-    yesterday_words_define = []
-    yesterday_symbol_list = []
+    curve_days_words = []
+    curve_days_define = []
+    curve_days_symbol_list = []
     for k, v in note_dict.items():
         data = get_xiaod_words(s, k)
         word_list = data["data"]["wordList"]
@@ -100,18 +107,23 @@ def make_xiaod_note(s):
                 new_words.append(word["word"])
                 new_words_define.append(word["definition"])
                 symbol_list.append(word["symbol1"])
-            if (
-                add_date.day == now.subtract(days=1).day
-                and add_date.month == now.subtract(days=1).month
-                and add_date.year == now.subtract(days=1).year
-            ):
-                yesterday_words.append(word["word"])
-                yesterday_words_define.append(word["definition"])
-                yesterday_symbol_list.append(word["symbol1"])
-    if not new_words:
-        print("No new words today")
-        return yesterday_words, yesterday_words_define, yesterday_symbol_list
-    return new_words, new_words_define, symbol_list
+            if add_date.to_date_string() in learning_curve_days():
+                curve_days_words.append(word["word"])
+                curve_days_define.append(word["definition"])
+                curve_days_symbol_list.append(word["symbol1"])
+    if new_words:
+        words_dict["new_words"] = {
+            "words": new_words,
+            "define": new_words_define,
+            "symbol": symbol_list,
+        }
+    if curve_days_words:
+        words_dict["curve_days_words"] = {
+            "words": curve_days_words,
+            "define": curve_days_define,
+            "symbol": curve_days_symbol_list,
+        }
+    return words_dict
 
 
 def main(user_name, password, token, tele_token, tele_chat_id):
@@ -121,23 +133,71 @@ def main(user_name, password, token, tele_token, tele_chat_id):
         headers = {"hj_appkey": HJKEY, "Content-Type": "application/json"}
         s.headers = headers
         headers["Access-Token"] = token
-        word_list, word_define_list, symbol_list = make_xiaod_note(s)
+        words_dict = make_xiaod_note_words(s)
     except Exception as e:
         s = login(user_name, password)
-        word_list, word_define_list, symbol_list = make_xiaod_note(s)
+        words_dict = make_xiaod_note_words(s)
+    if not words_dict:
+        return
     bot = telebot.TeleBot(tele_token)
-    # word
-    bot.send_message(tele_chat_id, "Today's words:\n" + "\n".join(word_list))
-    # symbol
-    bot.send_message(tele_chat_id, "Symbol:\n" + "\n".join(symbol_list))
-    # define
-    bot.send_message(tele_chat_id, "Definition:\n" + "\n".join(word_define_list))
-    # ten words combine make a story using openai
-    shuffle(word_list)
-    words_chunk = [word_list[i : i + 25] for i in range(0, len(word_list), 25)]
-    make_story_prompt = "Make a story using these words the story should be written in Japanese words: `{}`"
-    for chunk in words_chunk:
-        words = ",".join(chunk)
+    today_words = words_dict.get("new_words")
+    curve_days_words = words_dict.get("curve_days_words")
+    today_word_list = []
+    if today_words:
+        word_list = today_words["words"]
+        symbol_list = today_words["symbol"]
+        word_define_list = today_words["define"]
+        # word and symbol combined, with symbols as spoiler text
+        combined_list = [
+            f"{i+1}. {word} ||{symbol}||"
+            for i, (word, symbol) in enumerate(zip(word_list, symbol_list))
+        ]
+        bot.send_message(
+            tele_chat_id,
+            markdownify(
+                "Today's words with pronunciation:\n" + "\n".join(combined_list)
+            ),
+            parse_mode="MarkdownV2",
+        )
+        numbered_defines = [
+            f"{i+1}. {define}" for i, define in enumerate(word_define_list)
+        ]
+        bot.send_message(
+            tele_chat_id,
+            markdownify("Definition:\n" + "\n".join(numbered_defines)),
+            parse_mode="MarkdownV2",
+        )
+        today_word_list = word_list
+    if curve_days_words:
+        curve_days_word_list = curve_days_words["words"]
+        curve_days_symbol_list = curve_days_words["symbol"]
+        curve_days_word_define_list = curve_days_words["define"]
+        combined_curve_days_list = [
+            f"{i+1}. {word} ||{symbol}||"
+            for i, (word, symbol) in enumerate(
+                zip(curve_days_word_list, curve_days_symbol_list)
+            )
+        ]
+        bot.send_message(
+            tele_chat_id,
+            markdownify(
+                "Learning curve words with pronunciation:\n"
+                + "\n".join(combined_curve_days_list)
+            ),
+            parse_mode="MarkdownV2",
+        )
+        numbered_curve_defines = [
+            f"{i+1}. {define}" for i, define in enumerate(curve_days_word_define_list)
+        ]
+        bot.send_message(
+            tele_chat_id,
+            markdownify("Definition:\n" + "\n".join(numbered_curve_defines)),
+            parse_mode="MarkdownV2",
+        )
+    if today_word_list:
+        shuffle(today_word_list)
+        make_story_prompt = "Make a story using these words the story should be written in Japanese words: `{}`"
+        words = ",".join(today_word_list)
         prompt = make_story_prompt.format(words)
         try:
             completion = client.chat.completions.create(
@@ -153,8 +213,8 @@ def main(user_name, password, token, tele_token, tele_chat_id):
             )
             print("Audio created")
             # make all word in words to be bold
-            for word in chunk:
-                story = story.replace(word, f"*{word}*")
+            for word in today_word_list:
+                story = story.replace(word, f"**{word}**")
             # create a temp mp3 file
             with tempfile.NamedTemporaryFile(
                 prefix=f"words_{pendulum.now().to_date_string()}",
@@ -167,7 +227,8 @@ def main(user_name, password, token, tele_token, tele_chat_id):
                 bot.send_audio(
                     tele_chat_id,
                     open(speech_file_path, "rb"),
-                    caption=telegramify_markdown.markdownify(content),
+                    caption=markdownify(content),
+                    parse_mode="MarkdownV2",
                 )
                 # spdier rule
                 time.sleep(1)
