@@ -13,6 +13,7 @@ import pendulum
 from openai import OpenAI
 from rich import print
 from telegramify_markdown import markdownify
+from wcwidth import wcswidth
 
 
 if api_base := os.environ.get("OPENAI_API_BASE"):
@@ -126,6 +127,47 @@ def make_xiaod_note_words(s):
     return words_dict
 
 
+def send_word_messages(bot, chat_id, title, word_list, define_list, symbol_list):
+    def str_width(s):
+        return wcswidth(s)
+
+    def pad_text(text, target_width):
+        current = str_width(text)
+        diff = target_width - current
+        pad = ""
+        if diff > 0:
+            if diff % 2 == 1:
+                pad += " "
+                diff -= 1
+            pad += "\u3000" * (diff // 2)
+        return text + pad
+
+    def pad_index(index, max_width):
+        return str(index).rjust(max_width)
+
+    max_word_width = max([str_width(w) for w in word_list])
+    max_index_width = len(str(len(word_list)))
+    combined_list = []
+
+    for i, (word, symbol) in enumerate(zip(word_list, symbol_list)):
+        padded_index = pad_index(i + 1, max_index_width)
+        padded_word = pad_text(word, max_word_width)
+        combined_list.append(f"{padded_index}\\. `{padded_word}｜` ||{symbol}||")
+
+    bot.send_message(
+        chat_id,
+        markdownify(title + "\n" + "\n".join(combined_list)),
+        parse_mode="MarkdownV2",
+    )
+
+    numbered_defines = [f"{i+1}\\. {define}" for i, define in enumerate(define_list)]
+    bot.send_message(
+        chat_id,
+        markdownify("Definition:\n" + "\n".join(numbered_defines)),
+        parse_mode="MarkdownV2",
+    )
+
+
 def main(user_name, password, token, tele_token, tele_chat_id):
     try:
         s = requests.Session()
@@ -140,59 +182,26 @@ def main(user_name, password, token, tele_token, tele_chat_id):
     if not words_dict:
         return
     bot = telebot.TeleBot(tele_token)
-    today_words = words_dict.get("new_words")
-    curve_days_words = words_dict.get("curve_days_words")
     today_word_list = []
-    if today_words:
+    if today_words := words_dict.get("new_words"):
         word_list = today_words["words"]
-        symbol_list = today_words["symbol"]
-        word_define_list = today_words["define"]
-        # word and symbol combined, with symbols as spoiler text
-        combined_list = [
-            f"{i+1}. {word} ||{symbol}||"
-            for i, (word, symbol) in enumerate(zip(word_list, symbol_list))
-        ]
-        bot.send_message(
+        send_word_messages(
+            bot,
             tele_chat_id,
-            markdownify(
-                "Today's words with pronunciation:\n" + "\n".join(combined_list)
-            ),
-            parse_mode="MarkdownV2",
-        )
-        numbered_defines = [
-            f"{i+1}. {define}" for i, define in enumerate(word_define_list)
-        ]
-        bot.send_message(
-            tele_chat_id,
-            markdownify("Definition:\n" + "\n".join(numbered_defines)),
-            parse_mode="MarkdownV2",
+            "Today's words with pronunciation:",
+            word_list,
+            today_words["define"],
+            today_words["symbol"],
         )
         today_word_list = word_list
-    if curve_days_words:
-        curve_days_word_list = curve_days_words["words"]
-        curve_days_symbol_list = curve_days_words["symbol"]
-        curve_days_word_define_list = curve_days_words["define"]
-        combined_curve_days_list = [
-            f"{i+1}. {word} ||{symbol}||"
-            for i, (word, symbol) in enumerate(
-                zip(curve_days_word_list, curve_days_symbol_list)
-            )
-        ]
-        bot.send_message(
+    if curve_days_words := words_dict.get("curve_days_words"):
+        send_word_messages(
+            bot,
             tele_chat_id,
-            markdownify(
-                "Learning curve words with pronunciation:\n"
-                + "\n".join(combined_curve_days_list)
-            ),
-            parse_mode="MarkdownV2",
-        )
-        numbered_curve_defines = [
-            f"{i+1}. {define}" for i, define in enumerate(curve_days_word_define_list)
-        ]
-        bot.send_message(
-            tele_chat_id,
-            markdownify("Definition:\n" + "\n".join(numbered_curve_defines)),
-            parse_mode="MarkdownV2",
+            "Learning curve words with pronunciation:",
+            curve_days_words["words"],
+            curve_days_words["define"],
+            curve_days_words["symbol"],
         )
     if today_word_list:
         shuffle(today_word_list)
