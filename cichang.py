@@ -78,7 +78,7 @@ def login(user_name, password):
 
 def learning_curve_days():
     now = pendulum.now(TIMEZONE)
-    days_list = [1, 2, 4, 7, 15, 30]
+    days_list = [2, 3, 5, 8, 16, 31]
     return [now.subtract(days=d).to_date_string() for d in days_list]
 
 
