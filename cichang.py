@@ -100,11 +100,10 @@ def make_xiaod_note_words(s):
         for word in word_list:
             add_date = word["clientDateUpdated"]
             add_date = pendulum.parse(add_date)
-            if (
-                add_date.day == now.day
-                and add_date.month == now.month
-                and add_date.year == now.year
-            ):
+            if add_date.to_date_string() in {
+                now.to_date_string(),
+                now.subtract(days=1).to_date_string(),
+            }:
                 new_words.append(word["word"])
                 new_words_define.append(word["definition"])
                 symbol_list.append(word["symbol1"])
