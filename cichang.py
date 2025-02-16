@@ -182,9 +182,9 @@ def main(user_name, password, token, tele_token, tele_chat_id):
     if not words_dict:
         return
     bot = telebot.TeleBot(tele_token)
-    today_word_list = []
     if today_words := words_dict.get("new_words"):
         word_list = today_words["words"]
+        # first send words
         send_word_messages(
             bot,
             tele_chat_id,
@@ -193,20 +193,10 @@ def main(user_name, password, token, tele_token, tele_chat_id):
             today_words["define"],
             today_words["symbol"],
         )
-        today_word_list = word_list
-    if curve_days_words := words_dict.get("curve_days_words"):
-        send_word_messages(
-            bot,
-            tele_chat_id,
-            "Learning curve words with pronunciation:",
-            curve_days_words["words"],
-            curve_days_words["define"],
-            curve_days_words["symbol"],
-        )
-    if today_word_list:
-        shuffle(today_word_list)
+        # second send mp3
+        shuffle(word_list)
         make_story_prompt = "Make a story using these words the story should be written in Japanese words: `{}`"
-        words = ",".join(today_word_list)
+        words = ",".join(word_list)
         prompt = make_story_prompt.format(words)
         try:
             completion = client.chat.completions.create(
@@ -222,28 +212,36 @@ def main(user_name, password, token, tele_token, tele_chat_id):
             )
             print("Audio created")
             # make all word in words to be bold
-            for word in today_word_list:
-                story = story.replace(word, f"**{word}**")
-            # create a temp mp3 file
-            with tempfile.NamedTemporaryFile(
-                prefix=f"words_{pendulum.now().to_date_string()}",
-                suffix=".mp3",
-                delete=False,
-            ) as f:
-                speech_file_path = f.name
-                audio.write_to_file(speech_file_path)
-                content = head + story
-                bot.send_audio(
-                    tele_chat_id,
-                    open(speech_file_path, "rb"),
-                    caption=markdownify(content),
-                    parse_mode="MarkdownV2",
-                )
-                # spdier rule
-                time.sleep(1)
+            for word in word_list:
+                story = story.replace(word, f"`{word}`")
+            # create mp3 file with date in name
+            speech_file_path = f"words_{pendulum.now().to_date_string()}.mp3"
+            audio.write_to_file(speech_file_path)
+            content = head + story
+            bot.send_audio(
+                tele_chat_id,
+                open(speech_file_path, "rb"),
+                caption=markdownify(content),
+                parse_mode="MarkdownV2",
+            )
+            # cleanup file after sending
+            os.remove(speech_file_path)
+            # spider rule
+            time.sleep(1)
         except Exception as e:
             print(str(e))
             print("Can not make story")
+
+    # send learning curve words last
+    if curve_days_words := words_dict.get("curve_days_words"):
+        send_word_messages(
+            bot,
+            tele_chat_id,
+            "Learning curve words with pronunciation:",
+            curve_days_words["words"],
+            curve_days_words["define"],
+            curve_days_words["symbol"],
+        )
 
 
 if __name__ == "__main__":
