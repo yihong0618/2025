@@ -4,6 +4,7 @@
 
 - 人生第三个本命年了
 - 牛逼啊
+- 不要做一个 Hater.
 
 ![](https://github.com/yihong0618/run/blob/master/assets/github_2025.svg)
 
