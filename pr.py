@@ -1,6 +1,7 @@
 import requests
 import datetime
 import os
+import concurrent.futures
 
 token = os.getenv("GITHUB_TOKEN") or input("Enter your GitHub token: ")
 headers = {
@@ -39,46 +40,50 @@ if not all_prs:
     print("No PR records found")
     exit()
 
-pr_data = []
-for pr in all_prs:
+# use a session for connection pooling
+session = requests.Session()
+session.headers.update(headers)
+
+
+def fetch_pr_item(pr):
     repo_url = pr["repository_url"]
     repo_name = "/".join(repo_url.split("/")[-2:])
-
-    pr_details = requests.get(pr["pull_request"]["url"], headers=headers).json()
+    pr_details = session.get(pr["pull_request"]["url"]).json()
 
     created = datetime.datetime.strptime(
         pr["created_at"], "%Y-%m-%dT%H:%M:%SZ"
     ).strftime("%Y-%m-%d")
     merged = (
         datetime.datetime.strptime(
-            pr_details["merged_at"], "%Y-%m-%dT%H:%M:%SZ"
+            pr_details.get("merged_at", ""), "%Y-%m-%dT%H:%M:%SZ"
         ).strftime("%Y-%m-%d")
         if pr_details.get("merged_at")
         else "Not merged"
     )
-    pr_data.append(
-        (
-            pr["title"],
-            repo_name,
-            "Merged" if pr_details.get("merged_at") else pr["state"],
-            created,
-            merged,
-            pr["html_url"],
-        )
+    return (
+        created,
+        repo_name,
+        f"[{pr['title']}]({pr['html_url']})",
+        merged,
     )
 
-# sort by created time (column index 3), most recent first
-pr_data.sort(key=lambda x: x[3])
 
-filename = f"github_prs_{current_year}.md"
-table_headers = ["Created", "Title", "Repository", "State", "Merged"]
+# fetch details in parallel
+with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+    pr_data = list(executor.map(fetch_pr_item, all_prs))
+
+pr_data.sort(key=lambda x: x[0])
+
+filename = f"PRS_{current_year}.md"
+table_headers = ["Created", "Repo", "Title", "Merged"]
 lines = [
     "| " + " | ".join(table_headers) + " |",
     "|" + "|".join([" --- "] * len(table_headers)) + "|",
 ]
-for title, repo, state, created, merged, url in pr_data:
-    md_title = f"[{title}]({url})"
-    lines.append(f"| {created} | {md_title} | {repo} | {state} | {merged} |")
+for created, repo, title, merged in pr_data:
+    lines.append(f"| {created} | {repo} | {title} | {merged} |")
+# add total row at bottom of table
+lines.append(f"|  |  | **Total** | {len(pr_data)} |")
 with open(filename, "w", encoding="utf-8") as f:
-    f.write("\n".join(lines))
+    f.write("\n".join(lines) + "\n")
 print(f"Found {len(pr_data)} PR records, saved to {filename}")
