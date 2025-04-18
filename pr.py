@@ -74,16 +74,23 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
 
 pr_data.sort(key=lambda x: x[0])
 
+# assign incremental IDs
+pr_data = [
+    (i + 1, created, repo, title, merged)
+    for i, (created, repo, title, merged) in enumerate(pr_data)
+]
+
 filename = f"PRS_{current_year}.md"
-table_headers = ["Created", "Repo", "Title", "Merged"]
+# add ID to headers
+table_headers = ["ID", "Created", "Repo", "Title", "Merged"]
 lines = [
     "| " + " | ".join(table_headers) + " |",
     "|" + "|".join([" --- "] * len(table_headers)) + "|",
 ]
-for created, repo, title, merged in pr_data:
-    lines.append(f"| {created} | {repo} | {title} | {merged} |")
+for id_, created, repo, title, merged in pr_data:
+    lines.append(f"| {id_} | {created} | {repo} | {title} | {merged} |")
 # add total row at bottom of table
-lines.append(f"|  |  | **Total** | {len(pr_data)} |")
+lines.append(f"|  |  |  | **Total** | {len(pr_data)} |")
 with open(filename, "w", encoding="utf-8") as f:
     f.write("\n".join(lines) + "\n")
 print(f"Found {len(pr_data)} PR records, saved to {filename}")
