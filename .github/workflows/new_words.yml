@@ -35,3 +35,15 @@ jobs:
       - name: GET UP WITH WORDS
         run: |
           python cichang.py ${{ secrets.HJ_USERNAME }} ${{ secrets.HJ_PASSWORD }} ${{ secrets.HJ_TOKEN }} --tele_token ${{ secrets.TG_TOKEN }} --tele_chat_id ${{ secrets.TG_HJ_CHAT_ID }}
+    
+      - name: My PR stats
+        env:
+          GITHUB_TOKEN: ${{ secrets.G_T}}
+        run: |
+          python pr.py 
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add . 
+          git commit -m "generated today stats" || echo "no need to commit "
+          git push || echo "no file change"
+ 
