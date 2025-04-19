@@ -27,7 +27,7 @@ def get_one_sentence():
         if r.ok:
             return r.json()["content"]
         return DEFAULT_SENTENCE
-    except:
+    except Exception:
         print("get SENTENCE_API wrong")
         return DEFAULT_SENTENCE
 

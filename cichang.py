@@ -5,7 +5,6 @@ from base64 import b64decode
 import os
 from random import shuffle, choice
 import time
-import tempfile
 
 import requests
 import telebot
@@ -175,7 +174,7 @@ def main(user_name, password, token, tele_token, tele_chat_id):
         s.headers = headers
         headers["Access-Token"] = token
         words_dict = make_xiaod_note_words(s)
-    except Exception as e:
+    except Exception:
         s = login(user_name, password)
         words_dict = make_xiaod_note_words(s)
     if not words_dict:
