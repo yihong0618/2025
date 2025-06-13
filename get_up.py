@@ -88,7 +88,7 @@ def main(
             except Exception as e:
                 print(str(e))
     else:
-        print("You wake up late, test")
+        print("You wake up late, test!!")
 
 
 if __name__ == "__main__":
