@@ -7,3 +7,4 @@ pyTelegramBotAPI
 telegramify-markdown
 kling-creator
 wcwidth
+duckdb

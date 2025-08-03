@@ -1,13 +1,28 @@
 import argparse
+import tempfile
 
+import duckdb
 import pendulum
 import requests
 import telebot
 from github import Github
+from telegramify_markdown import markdownify
 
 # 1 real get up #5 for test
 GET_UP_ISSUE_NUMBER = 1
-GET_UP_MESSAGE_TEMPLATE = "今天的起床时间是--{get_up_time}.\r\n\r\n起床啦。\r\n\r\n今天的一句诗:\r\n{sentence}\r\n"
+GET_UP_MESSAGE_TEMPLATE = """今天的起床时间是--{get_up_time}。
+
+起床啦。
+
+今天是今年的第{day_of_year}天。
+
+{github_activity}
+
+{running_info}
+
+今天的一句诗:
+{sentence}
+"""
 # in 2024-06-15 this one ssl error
 SENTENCE_API = "https://v1.jinrishici.com/all"
 
@@ -32,6 +47,185 @@ def get_one_sentence():
         return DEFAULT_SENTENCE
 
 
+def get_yesterday_github_activity(github_token=None, username="yihong0618"):
+    """获取昨天的 GitHub PR 和 Issues 活动（北京时间）"""
+    try:
+        # 使用北京时间计算昨天
+        yesterday = pendulum.now(TIMEZONE).subtract(days=1)
+        yesterday_start = yesterday.start_of("day").in_timezone("UTC")
+        yesterday_end = yesterday.end_of("day").in_timezone("UTC")
+
+        activities = []
+
+        # 使用公开 API 获取用户活动
+        url = f"https://api.github.com/users/{username}/events"
+        headers = {}
+        if github_token:
+            headers["Authorization"] = f"token {github_token}"
+
+        response = requests.get(url, headers=headers)
+
+        if response.status_code == 200:
+            events = response.json()
+
+            for event in events[:50]:  # 检查最近50个事件
+                event_created = pendulum.parse(event["created_at"])
+
+                # 检查是否在昨天的时间范围内
+                if yesterday_start <= event_created <= yesterday_end:
+                    event_type = event["type"]
+                    repo_name = event["repo"]["name"]
+
+                    if event_type == "PullRequestEvent":
+                        action = event["payload"].get("action")
+                        if action == "opened":
+                            pr_data = event["payload"]["pull_request"]
+                            pr_title = pr_data["title"]
+                            pr_url = pr_data["html_url"]
+                            activities.append(
+                                f"创建了 PR: [{pr_title}]({pr_url}) ({repo_name})"
+                            )
+                        elif action == "merged":
+                            pr_data = event["payload"]["pull_request"]
+                            pr_title = pr_data["title"]
+                            pr_url = pr_data["html_url"]
+                            activities.append(
+                                f"合并了 PR: [{pr_title}]({pr_url}) ({repo_name})"
+                            )
+                    elif event_type == "IssuesEvent":
+                        action = event["payload"].get("action")
+                        if action == "opened":
+                            issue_data = event["payload"]["issue"]
+                            issue_title = issue_data["title"]
+                            issue_url = issue_data["html_url"]
+                            activities.append(
+                                f"创建了 Issue: [{issue_title}]({issue_url}) ({repo_name})"
+                            )
+                        elif action == "closed":
+                            issue_data = event["payload"]["issue"]
+                            issue_title = issue_data["title"]
+                            issue_url = issue_data["html_url"]
+                            activities.append(
+                                f"关闭了 Issue: [{issue_title}]({issue_url}) ({repo_name})"
+                            )
+                elif event_created < yesterday_start:
+                    # 超出时间范围，停止搜索
+                    break
+        else:
+            print(f"GitHub API 请求失败: {response.status_code}")
+            return ""
+
+        if activities:
+            # 去重并限制数量
+            unique_activities = list(dict.fromkeys(activities))
+            return "昨天的 GitHub 活动：\n" + "\n".join(
+                f"• {activity}" for activity in unique_activities[:5]
+            )
+        else:
+            return ""
+
+    except Exception as e:
+        print(f"Error getting GitHub activity: {e}")
+        return ""
+
+
+def get_running_distance():
+    """获取跑步距离信息（昨天、本月、今年的统计）"""
+    try:
+        # 下载 parquet 文件
+        url = "https://github.com/yihong0618/run/raw/refs/heads/master/run_page/data.parquet"
+        response = requests.get(url)
+
+        if not response.ok:
+            return ""
+
+        # 使用 duckdb 读取 parquet 数据
+        with tempfile.NamedTemporaryFile() as temp_file:
+            temp_file.write(response.content)
+            temp_file.flush()
+
+            conn = duckdb.connect()
+
+            # 获取北京时间的日期
+            now = pendulum.now(TIMEZONE)
+            yesterday = now.subtract(days=1)
+            month_start = now.start_of("month")
+            year_start = now.start_of("year")
+
+            # 昨天的跑步统计（距离单位是米，转换为公里）
+            yesterday_query = f"""
+            SELECT 
+                COUNT(*) as count,
+                ROUND(SUM(distance)/1000, 2) as total_km
+            FROM read_parquet('{temp_file.name}')
+            WHERE DATE(start_date) = '{yesterday.to_date_string()}'
+            """
+
+            # 本月的跑步统计
+            month_query = f"""
+            SELECT 
+                COUNT(*) as count,
+                ROUND(SUM(distance)/1000, 2) as total_km
+            FROM read_parquet('{temp_file.name}')
+            WHERE start_date >= '{month_start.to_date_string()}' 
+                AND start_date < '{now.add(days=1).to_date_string()}'
+            """
+
+            # 今年的跑步统计
+            year_query = f"""
+            SELECT 
+                COUNT(*) as count,
+                ROUND(SUM(distance)/1000, 2) as total_km
+            FROM read_parquet('{temp_file.name}')
+            WHERE start_date >= '{year_start.to_date_string()}' 
+                AND start_date < '{now.add(days=1).to_date_string()}'
+            """
+
+            yesterday_result = conn.execute(yesterday_query).fetchone()
+            month_result = conn.execute(month_query).fetchone()
+            year_result = conn.execute(year_query).fetchone()
+
+            conn.close()
+
+            # 构建跑步信息
+            running_info_parts = []
+
+            if yesterday_result and yesterday_result[0] > 0:
+                running_info_parts.append(
+                    f"• 昨天跑步{yesterday_result[0]}次，{yesterday_result[1]}公里"
+                )
+            else:
+                running_info_parts.append("• 昨天未跑步")
+
+            if month_result and month_result[0] > 0:
+                running_info_parts.append(
+                    f"• 本月跑步{month_result[0]}次，{month_result[1]}公里"
+                )
+            else:
+                running_info_parts.append("• 本月还未跑步")
+
+            if year_result and year_result[0] > 0:
+                running_info_parts.append(
+                    f"• 今年跑步{year_result[0]}次，{year_result[1]}公里"
+                )
+            else:
+                running_info_parts.append("• 今年还未跑步")
+
+            return "跑步统计：\n" + "\n".join(running_info_parts)
+
+    except Exception as e:
+        print(f"Error getting running data: {e}")
+        return ""
+
+    return ""
+
+
+def get_day_of_year():
+    """获取今天是今年的第几天"""
+    now = pendulum.now(TIMEZONE)
+    return now.day_of_year
+
+
 def get_today_get_up_status(issue):
     comments = list(issue.get_comments())
     if not comments:
@@ -45,7 +239,7 @@ def get_today_get_up_status(issue):
     return is_today
 
 
-def make_get_up_message():
+def make_get_up_message(github_token):
     sentence = get_one_sentence()
     now = pendulum.now(TIMEZONE)
     # 3 - 7 means early for me
@@ -56,7 +250,13 @@ def make_get_up_message():
         print(f"Second: {sentence}")
     except Exception as e:
         print(str(e))
-    return sentence, is_get_up_early
+
+    # 获取额外信息
+    day_of_year = get_day_of_year()
+    github_activity = get_yesterday_github_activity(github_token)
+    running_info = get_running_distance()
+
+    return sentence, is_get_up_early, day_of_year, github_activity, running_info
 
 
 def main(
@@ -73,9 +273,19 @@ def main(
     if is_today:
         print("Today I have recorded the wake up time")
         return
-    sentence, is_get_up_early = make_get_up_message()
+
+    sentence, is_get_up_early, day_of_year, github_activity, running_info = (
+        make_get_up_message(github_token)
+    )
     get_up_time = pendulum.now(TIMEZONE).to_datetime_string()
-    body = GET_UP_MESSAGE_TEMPLATE.format(get_up_time=get_up_time, sentence=sentence)
+
+    body = GET_UP_MESSAGE_TEMPLATE.format(
+        get_up_time=get_up_time,
+        sentence=sentence,
+        day_of_year=day_of_year,
+        github_activity=github_activity,
+        running_info=running_info,
+    )
 
     if is_get_up_early:
         issue.create_comment(body)
@@ -83,8 +293,14 @@ def main(
         if tele_token and tele_chat_id:
             bot = telebot.TeleBot(tele_token)
             try:
-                # sleep for waiting for the image to be generated
-                bot.send_message(tele_chat_id, body, disable_notification=True)
+                # 使用 markdownify 格式化消息
+                formatted_body = markdownify(body)
+                bot.send_message(
+                    tele_chat_id,
+                    formatted_body,
+                    parse_mode="MarkdownV2",
+                    disable_notification=True,
+                )
             except Exception as e:
                 print(str(e))
     else:
