@@ -1,4 +1,5 @@
 import argparse
+import re
 import tempfile
 
 import duckdb
@@ -264,6 +265,16 @@ def make_get_up_message(github_token):
     return sentence, is_get_up_early, day_of_year, github_activity, running_info
 
 
+def remove_github_links(text):
+    """移除文本中的GitHub PR和Issue链接，避免双链"""
+    # 移除markdown格式的链接 [title](url)
+    # 匹配GitHub的PR和Issue链接
+    pattern = r"\[([^\]]+)\]\(https://github\.com/[^/]+/[^/]+/(?:pull|issues)/\d+\)"
+    # 只保留链接的标题部分
+    cleaned_text = re.sub(pattern, r"\1", text)
+    return cleaned_text
+
+
 def main(
     github_token,
     repo_name,
@@ -293,8 +304,7 @@ def main(
     )
 
     if is_get_up_early:
-        issue.create_comment(body)
-        # send to telegram
+        # send to telegram (保持原有链接格式)
         if tele_token and tele_chat_id:
             bot = telebot.TeleBot(tele_token)
             try:
@@ -308,6 +318,10 @@ def main(
                 )
             except Exception as e:
                 print(str(e))
+
+        # 创建issue评论时移除GitHub链接
+        cleaned_body = remove_github_links(body)
+        issue.create_comment(cleaned_body)
     else:
         print("You wake up late")
 
