@@ -14,7 +14,7 @@ GET_UP_MESSAGE_TEMPLATE = """今天的起床时间是--{get_up_time}。
 
 起床啦。
 
-今天是今年的第{day_of_year}天。
+今天是今年的第 {day_of_year} 天。
 
 {github_activity}
 
@@ -48,7 +48,7 @@ def get_one_sentence():
 
 
 def get_yesterday_github_activity(github_token=None, username="yihong0618"):
-    """获取昨天的 GitHub PR 和 Issues 活动（北京时间）"""
+    """获取昨天的 GitHub PR、Issues 和 Star 活动（北京时间）"""
     try:
         # 使用北京时间计算昨天
         yesterday = pendulum.now(TIMEZONE).subtract(days=1)
@@ -68,7 +68,7 @@ def get_yesterday_github_activity(github_token=None, username="yihong0618"):
         if response.status_code == 200:
             events = response.json()
 
-            for event in events[:50]:  # 检查最近50个事件
+            for event in events[:100]:  # 检查最近100个事件，增加数量以确保捕获所有活动
                 event_created = pendulum.parse(event["created_at"])
 
                 # 检查是否在昨天的时间范围内
@@ -108,6 +108,12 @@ def get_yesterday_github_activity(github_token=None, username="yihong0618"):
                             activities.append(
                                 f"关闭了 Issue: [{issue_title}]({issue_url}) ({repo_name})"
                             )
+                    elif event_type == "WatchEvent":  # Star 事件
+                        action = event["payload"].get("action")
+                        if action == "started":  # started 表示 star 了仓库
+                            repo_name = event["repo"]["name"]
+                            repo_url = f"https://github.com/{repo_name}"
+                            activities.append(f"Star 了项目: [{repo_name}]({repo_url})")
                 elif event_created < yesterday_start:
                     # 超出时间范围，停止搜索
                     break
@@ -119,7 +125,7 @@ def get_yesterday_github_activity(github_token=None, username="yihong0618"):
             # 去重并限制数量
             unique_activities = list(dict.fromkeys(activities))
             return "昨天的 GitHub 活动：\n" + "\n".join(
-                f"• {activity}" for activity in unique_activities[:5]
+                f"• {activity}" for activity in unique_activities[:8]  # 增加显示数量
             )
         else:
             return ""
@@ -158,7 +164,7 @@ def get_running_distance():
                 COUNT(*) as count,
                 ROUND(SUM(distance)/1000, 2) as total_km
             FROM read_parquet('{temp_file.name}')
-            WHERE DATE(start_date) = '{yesterday.to_date_string()}'
+            WHERE DATE(start_date_local) = '{yesterday.to_date_string()}'
             """
 
             # 本月的跑步统计
@@ -167,8 +173,8 @@ def get_running_distance():
                 COUNT(*) as count,
                 ROUND(SUM(distance)/1000, 2) as total_km
             FROM read_parquet('{temp_file.name}')
-            WHERE start_date >= '{month_start.to_date_string()}' 
-                AND start_date < '{now.add(days=1).to_date_string()}'
+            WHERE start_date_local >= '{month_start.to_date_string()}' 
+                AND start_date_local < '{now.add(days=1).to_date_string()}'
             """
 
             # 今年的跑步统计
@@ -177,8 +183,8 @@ def get_running_distance():
                 COUNT(*) as count,
                 ROUND(SUM(distance)/1000, 2) as total_km
             FROM read_parquet('{temp_file.name}')
-            WHERE start_date >= '{year_start.to_date_string()}' 
-                AND start_date < '{now.add(days=1).to_date_string()}'
+            WHERE start_date_local >= '{year_start.to_date_string()}' 
+                AND start_date_local < '{now.add(days=1).to_date_string()}'
             """
 
             yesterday_result = conn.execute(yesterday_query).fetchone()
@@ -251,7 +257,6 @@ def make_get_up_message(github_token):
     except Exception as e:
         print(str(e))
 
-    # 获取额外信息
     day_of_year = get_day_of_year()
     github_activity = get_yesterday_github_activity(github_token)
     running_info = get_running_distance()
