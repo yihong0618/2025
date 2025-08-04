@@ -22,6 +22,7 @@ GET_UP_MESSAGE_TEMPLATE = """今天的起床时间是--{get_up_time}。
 {running_info}
 
 今天的一句诗:
+
 {sentence}
 """
 # in 2024-06-15 this one ssl error
@@ -49,7 +50,6 @@ def get_one_sentence():
 
 
 def get_yesterday_github_activity(github_token=None, username="yihong0618"):
-    """获取昨天的 GitHub PR、Issues 和 Star 活动（北京时间）"""
     try:
         # 使用北京时间计算昨天
         yesterday = pendulum.now(TIMEZONE).subtract(days=1)
@@ -69,10 +69,9 @@ def get_yesterday_github_activity(github_token=None, username="yihong0618"):
         if response.status_code == 200:
             events = response.json()
 
-            for event in events[:100]:  # 检查最近100个事件，增加数量以确保捕获所有活动
+            for event in events[:100]:
                 event_created = pendulum.parse(event["created_at"])
 
-                # 检查是否在昨天的时间范围内
                 if yesterday_start <= event_created <= yesterday_end:
                     event_type = event["type"]
                     repo_name = event["repo"]["name"]
@@ -109,24 +108,22 @@ def get_yesterday_github_activity(github_token=None, username="yihong0618"):
                             activities.append(
                                 f"关闭了 Issue: [{issue_title}]({issue_url}) ({repo_name})"
                             )
-                    elif event_type == "WatchEvent":  # Star 事件
+                    elif event_type == "WatchEvent":
                         action = event["payload"].get("action")
-                        if action == "started":  # started 表示 star 了仓库
+                        if action == "started":
                             repo_name = event["repo"]["name"]
                             repo_url = f"https://github.com/{repo_name}"
                             activities.append(f"Star 了项目: [{repo_name}]({repo_url})")
                 elif event_created < yesterday_start:
-                    # 超出时间范围，停止搜索
                     break
         else:
             print(f"GitHub API 请求失败: {response.status_code}")
             return ""
 
         if activities:
-            # 去重并限制数量
             unique_activities = list(dict.fromkeys(activities))
-            return "昨天的 GitHub 活动：\n" + "\n".join(
-                f"• {activity}" for activity in unique_activities[:8]  # 增加显示数量
+            return "GitHub：\n\n" + "\n".join(
+                f"• {activity}" for activity in unique_activities[:8]
             )
         else:
             return ""
@@ -137,88 +134,71 @@ def get_yesterday_github_activity(github_token=None, username="yihong0618"):
 
 
 def get_running_distance():
-    """获取跑步距离信息（昨天、本月、今年的统计）"""
     try:
-        # 下载 parquet 文件
         url = "https://github.com/yihong0618/run/raw/refs/heads/master/run_page/data.parquet"
         response = requests.get(url)
 
         if not response.ok:
             return ""
 
-        # 使用 duckdb 读取 parquet 数据
         with tempfile.NamedTemporaryFile() as temp_file:
             temp_file.write(response.content)
             temp_file.flush()
 
-            conn = duckdb.connect()
+            with duckdb.connect() as conn:
+                now = pendulum.now(TIMEZONE)
+                yesterday = now.subtract(days=1)
+                month_start = now.start_of("month")
+                year_start = now.start_of("year")
 
-            # 获取北京时间的日期
-            now = pendulum.now(TIMEZONE)
-            yesterday = now.subtract(days=1)
-            month_start = now.start_of("month")
-            year_start = now.start_of("year")
+                yesterday_query = f"""
+                SELECT 
+                    COUNT(*) as count,
+                    ROUND(SUM(distance)/1000, 2) as total_km
+                FROM read_parquet('{temp_file.name}')
+                WHERE DATE(start_date_local) = '{yesterday.to_date_string()}'
+                """
 
-            # 昨天的跑步统计（距离单位是米，转换为公里）
-            yesterday_query = f"""
-            SELECT 
-                COUNT(*) as count,
-                ROUND(SUM(distance)/1000, 2) as total_km
-            FROM read_parquet('{temp_file.name}')
-            WHERE DATE(start_date_local) = '{yesterday.to_date_string()}'
-            """
+                month_query = f"""
+                SELECT 
+                    COUNT(*) as count,
+                    ROUND(SUM(distance)/1000, 2) as total_km
+                FROM read_parquet('{temp_file.name}')
+                WHERE start_date_local >= '{month_start.to_date_string()}' 
+                    AND start_date_local < '{now.add(days=1).to_date_string()}'
+                """
 
-            # 本月的跑步统计
-            month_query = f"""
-            SELECT 
-                COUNT(*) as count,
-                ROUND(SUM(distance)/1000, 2) as total_km
-            FROM read_parquet('{temp_file.name}')
-            WHERE start_date_local >= '{month_start.to_date_string()}' 
-                AND start_date_local < '{now.add(days=1).to_date_string()}'
-            """
+                year_query = f"""
+                SELECT 
+                    COUNT(*) as count,
+                    ROUND(SUM(distance)/1000, 2) as total_km
+                FROM read_parquet('{temp_file.name}')
+                WHERE start_date_local >= '{year_start.to_date_string()}' 
+                    AND start_date_local < '{now.add(days=1).to_date_string()}'
+                """
 
-            # 今年的跑步统计
-            year_query = f"""
-            SELECT 
-                COUNT(*) as count,
-                ROUND(SUM(distance)/1000, 2) as total_km
-            FROM read_parquet('{temp_file.name}')
-            WHERE start_date_local >= '{year_start.to_date_string()}' 
-                AND start_date_local < '{now.add(days=1).to_date_string()}'
-            """
+                yesterday_result = conn.execute(yesterday_query).fetchone()
+                month_result = conn.execute(month_query).fetchone()
+                year_result = conn.execute(year_query).fetchone()
 
-            yesterday_result = conn.execute(yesterday_query).fetchone()
-            month_result = conn.execute(month_query).fetchone()
-            year_result = conn.execute(year_query).fetchone()
-
-            conn.close()
-
-            # 构建跑步信息
             running_info_parts = []
 
             if yesterday_result and yesterday_result[0] > 0:
-                running_info_parts.append(
-                    f"• 昨天跑步{yesterday_result[0]}次，{yesterday_result[1]}公里"
-                )
+                running_info_parts.append(f"• 昨天跑了 {yesterday_result[1]} 公里")
             else:
-                running_info_parts.append("• 昨天未跑步")
+                running_info_parts.append("• 昨天没跑")
 
             if month_result and month_result[0] > 0:
-                running_info_parts.append(
-                    f"• 本月跑步{month_result[0]}次，{month_result[1]}公里"
-                )
+                running_info_parts.append(f"• 本月跑了 {month_result[1]} 公里")
             else:
-                running_info_parts.append("• 本月还未跑步")
+                running_info_parts.append("• 本月没跑")
 
             if year_result and year_result[0] > 0:
-                running_info_parts.append(
-                    f"• 今年跑步{year_result[0]}次，{year_result[1]}公里"
-                )
+                running_info_parts.append(f"• 今年跑了 {year_result[1]} 公里")
             else:
-                running_info_parts.append("• 今年还未跑步")
+                running_info_parts.append("• 今年没跑")
 
-            return "跑步统计：\n" + "\n".join(running_info_parts)
+            return "RUN：\n\n" + "\n".join(running_info_parts)
 
     except Exception as e:
         print(f"Error getting running data: {e}")
@@ -228,7 +208,6 @@ def get_running_distance():
 
 
 def get_day_of_year():
-    """获取今天是今年的第几天"""
     now = pendulum.now(TIMEZONE)
     return now.day_of_year
 
@@ -266,11 +245,7 @@ def make_get_up_message(github_token):
 
 
 def remove_github_links(text):
-    """移除文本中的GitHub PR和Issue链接，避免双链"""
-    # 移除markdown格式的链接 [title](url)
-    # 匹配GitHub的PR和Issue链接
     pattern = r"\[([^\]]+)\]\(https://github\.com/[^/]+/[^/]+/(?:pull|issues)/\d+\)"
-    # 只保留链接的标题部分
     cleaned_text = re.sub(pattern, r"\1", text)
     return cleaned_text
 
