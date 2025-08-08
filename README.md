@@ -24,8 +24,7 @@
 |   5 | [GitHubPoster](https://github.com/yihong0618/GitHubPoster)                             | 2021-04-21 | 2025-08-03 | Python           |  1820 |
 |   6 | [gitblog](https://github.com/yihong0618/gitblog)                                       | 2019-07-18 | 2025-08-03 | Python           |  1540 |
 |   7 | [tg_bot_collections](https://github.com/yihong0618/tg_bot_collections)                 | 2023-12-11 | 2025-07-17 | Python           |   575 |
-|   8 | [epubhv](https://github.com/yihong0618/epubhv)                            ![IMAGE 2025-08-08 10:02:35](https://github.com/user-attachments/assets/ef227934-e8df-4417-b277-446ffbb485bc)
-             | 2023-09-04 | 2025-08-03 | Python           |   509 |
+|   8 | [epubhv](https://github.com/yihong0618/epubhv)                                         | 2023-09-04 | 2025-08-03 | Python           |   509 |
 |   9 | [tg_bing_dalle](https://github.com/yihong0618/tg_bing_dalle)                           | 2023-10-04 | 2025-06-27 | Python           |   414 |
 |  10 | [MiService](https://github.com/yihong0618/MiService)                                   | 2022-11-04 | 2025-07-11 | Python           |   404 |
 |  11 | [twint](https://github.com/yihong0618/twint)                                           | 2021-05-08 | 2025-05-11 | Python           |   321 |
