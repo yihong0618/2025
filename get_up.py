@@ -177,14 +177,31 @@ def get_yesterday_github_activity(github_token=None, username="yihong0618"):
             print(f"搜索 Issue 时出错: {error}")
 
         # 获取其他事件（合并、关闭、Star 等）
+        # 检查多页事件，因为 Star 事件可能不在第一页
         events_url = f"https://api.github.com/users/{username}/events"
-        events_data, error = _make_api_request(events_url, headers)
-        if events_data:
-            activities.extend(
-                _process_events(events_data, yesterday_start, yesterday_end)
+        all_activities = []
+
+        for page in range(1, 4):  # 检查前3页，总共约90个事件
+            page_params = {"page": page, "per_page": 30}
+            events_data, error = _make_api_request(events_url, headers, page_params)
+
+            if error:
+                print(f"获取第 {page} 页 Events 时出错: {error}")
+                continue
+
+            if not events_data:
+                break  # 没有更多事件了
+
+            page_activities = _process_events(
+                events_data, yesterday_start, yesterday_end
             )
-        elif error:
-            print(f"获取 Events 时出错: {error}")
+            all_activities.extend(page_activities)
+
+            # 如果这一页事件数少于30，说明已经到底了
+            if len(events_data) < 30:
+                break
+
+        activities.extend(all_activities)
 
         # 返回结果
         if activities:
