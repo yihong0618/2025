@@ -96,6 +96,9 @@ def _process_events(events, yesterday_start, yesterday_end):
         if not (yesterday_start <= event_created <= yesterday_end):
             continue
 
+        if not event.get("public", True):
+            continue
+
         event_type = event["type"]
         repo_name = event["repo"]["name"]
 
@@ -149,7 +152,7 @@ def get_yesterday_github_activity(github_token=None, username="yihong0618"):
             search_url,
             headers,
             {
-                "q": f"is:pr involves:{username} created:{yesterday_date}",
+                "q": f"is:pr is:public involves:{username} created:{yesterday_date}",
                 "per_page": 100,
             },
         )
@@ -165,7 +168,7 @@ def get_yesterday_github_activity(github_token=None, username="yihong0618"):
             search_url,
             headers,
             {
-                "q": f"is:issue involves:{username} created:{yesterday_date}",
+                "q": f"is:issue is:public involves:{username} created:{yesterday_date}",
                 "per_page": 100,
             },
         )

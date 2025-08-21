@@ -16,7 +16,10 @@ current_year = datetime.datetime.now().year
 start_date = f"{current_year}-01-01"
 
 search_url = "https://api.github.com/search/issues"
-params = {"q": f"is:pr author:{username} created:>={start_date}", "per_page": 100}
+params = {
+    "q": f"is:pr is:public author:{username} created:>={start_date}",
+    "per_page": 100,
+}
 
 all_prs = []
 page = 1
