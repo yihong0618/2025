@@ -363,7 +363,8 @@ def make_get_up_message(github_token):
 
 
 def remove_github_links(text):
-    pattern = r"\[([^\]]+)\]\(https://github\.com/[^/]+/[^/]+/(?:pull|issues)/\d+\)"
+    # 移除所有 GitHub 链接，保留链接文本
+    pattern = r"\[([^\]]+)\]\(https://github\.com/[^\)]+\)"
     cleaned_text = re.sub(pattern, r"\1", text)
     return cleaned_text
 
