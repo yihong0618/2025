@@ -12,6 +12,7 @@
 - > 人群的掌声与嘘声，本质上都是噪声
 - 知道自己能力边界和知道 LLM 能力边界同样重要
 - 不要当个嘴巴选手
+- 在批评中成长
 
 ![](https://github.com/yihong0618/run/blob/master/assets/github_2025.svg)
 
