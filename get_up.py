@@ -30,9 +30,7 @@ GET_UP_MESSAGE_TEMPLATE = """今天的起床时间是--{get_up_time}。
 # in 2024-06-15 this one ssl error
 SENTENCE_API = "https://v1.jinrishici.com/all"
 
-DEFAULT_SENTENCE = (
-    "赏花归去马如飞\r\n去马如飞酒力微\r\n酒力微醒时已暮\r\n醒时已暮赏花归\r\n"
-)
+DEFAULT_SENTENCE = "赏花归去马如飞\r\n去马如飞酒力微\r\n酒力微醒时已暮\r\n醒时已暮赏花归\r\n"
 TIMEZONE = "Asia/Shanghai"
 
 
@@ -148,34 +146,42 @@ def get_yesterday_github_activity(github_token=None, username="yihong0618"):
 
         # 获取创建的 PR
         search_url = "https://api.github.com/search/issues"
+        pr_query = f"is:pr is:public author:{username} created:{yesterday_date}"
+        print(f"PR 搜索查询: {pr_query}")
         pr_data, error = _make_api_request(
             search_url,
             headers,
             {
-                "q": f"is:pr is:public involves:{username} created:{yesterday_date}",
+                "q": pr_query,
                 "per_page": 100,
             },
         )
         if pr_data:
-            activities.extend(
-                _process_search_items(pr_data.get("items", []), username, "pr")
-            )
+            pr_items = pr_data.get("items", [])
+            print(f"找到 {len(pr_items)} 个 PR")
+            pr_activities = _process_search_items(pr_items, username, "pr")
+            print(f"处理后的 PR 活动: {pr_activities}")
+            activities.extend(pr_activities)
         elif error:
             print(f"搜索 PR 时出错: {error}")
 
         # 获取创建的 Issue
+        issue_query = f"is:issue is:public author:{username} created:{yesterday_date}"
+        print(f"Issue 搜索查询: {issue_query}")
         issue_data, error = _make_api_request(
             search_url,
             headers,
             {
-                "q": f"is:issue is:public involves:{username} created:{yesterday_date}",
+                "q": issue_query,
                 "per_page": 100,
             },
         )
         if issue_data:
-            activities.extend(
-                _process_search_items(issue_data.get("items", []), username, "issue")
-            )
+            issue_items = issue_data.get("items", [])
+            print(f"找到 {len(issue_items)} 个 Issue")
+            issue_activities = _process_search_items(issue_items, username, "issue")
+            print(f"处理后的 Issue 活动: {issue_activities}")
+            activities.extend(issue_activities)
         elif error:
             print(f"搜索 Issue 时出错: {error}")
 
@@ -207,12 +213,17 @@ def get_yesterday_github_activity(github_token=None, username="yihong0618"):
         activities.extend(all_activities)
 
         # 返回结果
+        print(f"所有活动总数: {len(activities)}")
+        print(f"所有活动: {activities}")
         if activities:
             # 去重并限制数量
             unique_activities = list(dict.fromkeys(activities))
-            return "GitHub：\n\n" + "\n".join(
-                f"• {activity}" for activity in unique_activities[:8]
+            print(f"去重后活动数: {len(unique_activities)}")
+            result = "GitHub：\n\n" + "\n".join(
+                f"• {activity}" for activity in unique_activities[:15]
             )
+            print(f"最终结果:\n{result}")
+            return result
 
         return ""
 
