@@ -199,7 +199,7 @@ def main(user_name, password, token, tele_token, tele_chat_id):
         try:
             completion = client.chat.completions.create(
                 messages=[{"role": "user", "content": prompt}],
-                model="gpt-4o-2024-05-13",
+                model="gpt-5.6-sol",
             )
             head = "Words: " + words + "\n"
             story = completion.choices[0].message.content.encode("utf8").decode()
